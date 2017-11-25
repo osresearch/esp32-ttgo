@@ -5,14 +5,16 @@ ESP32 + OLED + LoRa module from TT GO
 These $10 ESP32 modules from various aliexpress sellers [(one example)](https://www.aliexpress.com/item/2pcs-TTGO-LORA-SX1278-ESP32-0-96-OLED-16-Mt-bytes-128-Mt-bit-433Mhz-for/32833821668.html)
 have a SSD1306 128x64 white OLED display and a SX1278 LoRa radio module.
 They also include a LiPo battery charger and two buttons (one is wired to
-reset, so it isn't as useful).  There is a slightly more expensive version
-with a blue OLED.
+reset, so it isn't as useful).  There is a slightly more [expensive version
+with a blue OLED](https://www.aliexpress.com/item/2pcs-of-868MHz-915MHz-SX1276-ESP32-LoRa-0-96-Inch-Blue-OLED-Display-Bluetooth-WIFI-Kit/32840618066.html)
+with a 900 Mhz radio.
 
 The official devkit is a 300 MB download, but if you have already setup
 ESP32 on your Arduino IDE then you just need to install the libraries
 for the OLED and LoRa (in the [`libraries/`](libraries/) directory of
-this tree).  From the Arduino IDE select `Sketch` - `Include Libaries` -
-`Add .zip library` and select the libraries.
+this tree).  From the Arduino IDE select
+`Sketch`-`Include Libaries`-`Add .zip library`
+and select the libraries zips.
 
 It would be nice to make the `Adafruit_SSD1306` library work with this
 module so that it isn't necessary to install anything extra.  It looks like
