@@ -26,7 +26,11 @@ i2c communication.
 
 Pinout
 ---
+The 400 MHz version with the white OLED:
 ![TTGO ESP32 module pinout](images/esp32-pinout.jpg)
+
+The 900 MHz version with the blue OLED:
+![TTGO ESP32 module pinout](images/esp32-pinout2.jpg)
 
 
 The ad copy says something about a touch screen:
