@@ -271,7 +271,9 @@ const char* CurrentObservation_precip_today_in;
 const char* CurrentObservation_precip_today_metric;
 const char* CurrentObservation_icon;
 
-bool  CurrCondObj(String* currCondString){
+bool
+CurrCondObj(const String* currCondString)
+{
   api_error = false;
   // When using a StaticJsonBuffer you must allocate sufficient memory for the json string returned by the WU api
   //Serial.println(*currCondString);
@@ -279,10 +281,24 @@ bool  CurrCondObj(String* currCondString){
   DynamicJsonBuffer jsonBuffer(5*1024);
   // Create root object and parse the json file returned from the api. The API returns errors and these need to be checked to ensure successful decoding
   JsonObject& root = jsonBuffer.parseObject(*(currCondString));
-  if(root.success()) {
+  if(!root.success())
+  {
+    // if the root object could not be created, then return an error make an API call the next time around
+    Serial.println("Unable to create a root object");
+    api_error = true;
+    return false;
+  }
+
     Serial.println("root object created...");
     JsonObject& CurrentObservation = root["current_observation"];
-    if(CurrentObservation.success()) {
+    if(!CurrentObservation.success())
+    {
+      // if the object could not be created, then return an error make an API call the next time around
+      Serial.println("Unable to obtain current observation object");
+      api_error = true;
+      return false;
+    }
+
       Serial.println("CurrentObservation object created...");
       // Now process the  "display_location":
       JsonObject& CurrentObservation_display_location     = CurrentObservation["display_location"]; // Set root location
@@ -326,22 +342,6 @@ bool  CurrCondObj(String* currCondString){
       CurrentObservation_visibility_km            = CurrentObservation["visibility_km"];
       CurrentObservation_icon                     = CurrentObservation["icon"]; 
       return true;
-    }
-    else
-    {
-      // if the object could not be created, then return an error make an API call the next time around
-      Serial.println("Unable to obtain current observation object");
-      api_error = true;
-      return false;
-    }
-  }
-  else
-  {
-    // if the root object could not be created, then return an error make an API call the next time around
-    Serial.println("Unable to create a root object");
-    api_error = true;
-    return false;
-  }
 }
 
 // Functions for weather data.
@@ -479,6 +479,7 @@ String getWeatherIcon()      {return CurrentObservation_icon;}
   }
 }
 */
+
 void msOverlay(OLEDDisplay *display, OLEDDisplayUiState* state) {
   struct tm timeinfo;
   if(!getLocalTime(&timeinfo)){
@@ -487,7 +488,9 @@ void msOverlay(OLEDDisplay *display, OLEDDisplayUiState* state) {
   }
   //See http://www.cplusplus.com/reference/ctime/strftime/
   time_str = asctime(&timeinfo); // Displays: Sat Jun 24 14:05:49 2017
+  display->setFont(ArialMT_Plain_10);
   display->setTextAlignment(TEXT_ALIGN_CENTER); // The coordinates define the center of the screen!
+/*
   if (time_str.substring(0,3) =="Sun") display->drawString(64,0,"Sunday");
   if (time_str.substring(0,3) =="Mon") display->drawString(64,0,"Monday");
   if (time_str.substring(0,3) =="Tue") display->drawString(64,0,"Tuesday");
@@ -495,9 +498,10 @@ void msOverlay(OLEDDisplay *display, OLEDDisplayUiState* state) {
   if (time_str.substring(0,3) =="Thu") display->drawString(64,0,"Thursday");
   if (time_str.substring(0,3) =="Fri") display->drawString(64,0,"Friday");
   if (time_str.substring(0,3) =="Sat") display->drawString(64,0,"Saturday");
+  display->drawLine(0, 12, DISPLAY_WIDTH-1, 12);
+*/
   display->drawString(18,53,time_str.substring(4,10));
   display->drawString(107,53,time_str.substring(11,19));
-  display->drawLine(0, 12, DISPLAY_WIDTH-1, 12);
 }
 
 void drawFrame1(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y) {
@@ -515,10 +519,16 @@ void drawFrame1(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int1
 }
 
 void drawFrame2(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y) {
-  if(CurrCondObj(&currCondString)) {
-    display->setFont(ArialMT_Plain_10);
+    display->setFont(ArialMT_Plain_16);
+  if(!CurrCondObj(&currCondString)) {
+    display->drawString(0, 0, "No observation");
+    return;
+  }
+
     String icon = getWeatherIcon();
     // The icons are drawn within a 40x20 box, each position can be slighly diiferent depending on icon shape
+	const char * icon_img = NULL;
+
     if (icon == "snow" ||
         icon == "chanceflurries" ||
         icon == "chancesnow" ||
@@ -526,74 +536,137 @@ void drawFrame2(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int1
         icon == "nt_chanceflurries" ||
         icon == "nt_chancesnow" ||
         icon == "nt_flurries" || 
-        icon == "nt_snow") display->drawXbm(x+0,y+20, icon_width, icon_height, snow_icon);
+        icon == "nt_snow")
+		icon_img = snow_icon;
+
     if (icon == "rain" ||
         icon == "chancerain" ||
         icon == "nt_chancerain" ||
-        icon == "nt_rain") display->drawXbm(x+0,y+20, icon_width, icon_height, rain_icon);
+        icon == "nt_rain")
+		icon_img = rain_icon;
+
     if (icon == "sleet" ||
         icon == "chancesleet" ||
         icon == "nt_chancesleet" ||
-        icon == "nt_sleet") display->drawXbm(x+0,y+20, icon_width, icon_height, sleet_icon);
+        icon == "nt_sleet")
+		icon_img = sleet_icon;
+
     if (icon == "sunny" || 
-        icon == "clear") display->drawXbm(x+0,y+20, icon_width, icon_height, sunny_icon);
+        icon == "clear")
+		icon_img = sunny_icon;
+
     if (icon == "cloudy" ||
-        icon == "nt_cloudy") display->drawXbm(x+0,y+20, icon_width, icon_height, cloudy_icon);
+        icon == "nt_cloudy")
+		icon_img = cloudy_icon;
+
     if (icon == "mostlysunny" ||
         icon == "partlycloudy" ||
         icon == "partlysunny" ||
-        icon == "mostlycloudy") display->drawXbm(x+0,y+20, icon_width, icon_height, mostlysunny_icon);
+        icon == "mostlycloudy")
+		icon_img = mostlysunny_icon;
+
     if (icon == "fog" || 
         icon == "nt_fog" ||
         icon == "nt_hazy" ||
-        icon == "hazy") display->drawXbm(x+0,y+20, icon_width, icon_height, fog_icon);
+        icon == "hazy")
+		icon_img = fog_icon;
+
     if (icon == "tstorms" ||
         icon == "chancetstorms" ||
         icon == "nt_tstorms" || 
-        icon == "nt_chancetstorms") display->drawXbm(x+0,y+20, icon_width, icon_height, tstorms_icon);
+        icon == "nt_chancetstorms")
+		icon_img = tstorms_icon;
+
     if (icon == "nt_mostlycloudy" ||
         icon == "nt_mostlysunny" || 
         icon == "nt_partlycloudy" ||
-        icon == "nt_partlysunny") display->drawXbm(x+0,y+20, icon_width, icon_height, nt_mostlycloudy_icon);
-    if (icon == "nt_clear") display->drawXbm(x+0,y+20, icon_width, icon_height, nt_clear_icon);
+        icon == "nt_partlysunny")
+		icon_img = nt_mostlycloudy_icon;
+
+    if (icon == "nt_clear")
+		icon_img = nt_clear_icon;
+
+	if (icon_img)
+		display->drawXbm(x+0,y+10, icon_width, icon_height, icon_img);
+
     //display->drawRect(0,23,40,33); // Icon alignment rectangle
     display->setTextAlignment(TEXT_ALIGN_RIGHT);
-    display->drawString(x+128,y+12,"At: "+getLocalTime().substring(0,12)+getLocalTime().substring(14,22)); 
-    display->drawString(x+128,y+24,getCurrWeather());
-    display->drawString(x+128,y+36,getCurrC()+"°C / "+getRelHum()); // use getCurrF for fahrenheit
-  }
+    //display->drawString(x+128,y+4,getLocalTime().substring(0,12)+getLocalTime().substring(14,22)); 
+    display->drawString(x+128,y+8,getCurrWeather());
+    display->drawString(x+128,y+30,getCurrC()+"°C / "+getRelHum()); // use getCurrF for fahrenheit
 }
 
 String display_Ptrend(String indicator){
-  if (indicator == "+")return "Rising";
-   else if (indicator == "-") return "Falling";
-     else return "Steady";
+  if (indicator == "+")return "+";
+   else if (indicator == "-") return "-";
+     else return " ";
 }
 
-void drawFrame3(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y) {
-  if(CurrCondObj(&currCondString)) {
-    display->drawString(x+64,y+12,getWindDir()+" @ "+getWindMPH()+"mph");
-    display->drawString(x+64,y+24,getPressure_mb()+"mB ["+display_Ptrend(getPressure_trend())+"]"); // '-' for falling '0' for no change and '+' for rising
-    display->drawString(x+64,y+36,getDewPointC()+"°C Dewpoint");
-  }
+void
+drawFrame3(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y) {
+	display->setTextAlignment(TEXT_ALIGN_CENTER);
+	if(!CurrCondObj(&currCondString))
+	{
+		display->setTextAlignment(TEXT_ALIGN_CENTER);
+		display->drawString(x+0,y+0, "No connection");
+		return;
+	}
+
+	display->setFont(ArialMT_Plain_10);
+	display->setTextAlignment(TEXT_ALIGN_LEFT);
+	display->drawString(x, y+0, "Pressure");
+	display->drawString(x, y+18, "Dewpoint");
+	display->drawString(x, y+36, "Wind");
+
+	display->setFont(ArialMT_Plain_16);
+	display->setTextAlignment(TEXT_ALIGN_RIGHT);
+	display->drawString(x+128-32,y+0,getPressure_mb());
+	display->drawString(x+128-32,y+18,getDewPointC());
+	display->drawString(x+128,y+36,getWindDir());
+
+	display->setTextAlignment(TEXT_ALIGN_LEFT);
+	display->drawString(x+128-30,y+0,"mB"+display_Ptrend(getPressure_trend()));
+	display->drawString(x+128-30,y+18,"°C");
 }
 
-void drawFrame4(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y) {
-  if(CurrCondObj(&currCondString)) {
-    display->drawString(x+64,y+15,"Visibility: "+getVisibility_mi()+" miles");
-    display->drawString(x+64,y+30,getPrecipTodayString()+" Rain");
-  }
+void
+drawFrame4(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
+{
+	display->setFont(ArialMT_Plain_10);
+	if(!CurrCondObj(&currCondString))
+	{
+		display->setTextAlignment(TEXT_ALIGN_CENTER);
+		display->drawString(x+0,y+0, "No connection");
+		return;
+	}
+
+	display->setFont(ArialMT_Plain_10);
+	display->setTextAlignment(TEXT_ALIGN_LEFT);
+	display->drawString(x+0,y+0,"Visibility");
+	display->drawString(x+0,y+18,"Rain");
+	display->drawString(x+0,y+36,"Wind");
+
+	display->setFont(ArialMT_Plain_16);
+	display->setTextAlignment(TEXT_ALIGN_RIGHT);
+	display->drawString(x+128-34,y+0, getVisibility_km());
+	display->drawString(x+128-34,y+18, getPrecipTodayMet());
+	display->drawString(x+128-34,y+36, getWindKPH());
+
+	display->setTextAlignment(TEXT_ALIGN_LEFT);
+	display->drawString(x+128-32,y+0,"km");
+	display->drawString(x+128-32,y+18,"mm");
+	display->drawString(x+128-32,y+36,"km/h");
 }
 
 // This array keeps function pointers to all frames frames are the single views that slide in
-FrameCallback frames[] = { drawFrame1, drawFrame2, drawFrame3, drawFrame4 };
+FrameCallback frames[] = { drawFrame2, drawFrame3, drawFrame4 };
 
 // how many frames are there?
-int frameCount = 4;
+const int frameCount = sizeof(frames) / sizeof(*frames);
 
 // Overlays are statically drawn on top of a frame eg. a clock
 OverlayCallback overlays[] = { msOverlay };
-int overlaysCount = 1;
+const int overlaysCount = sizeof(overlays) / sizeof(*overlays);
 
 int Start_WiFi(const char* ssid, const char* password){
  int connAttempts = 0;
@@ -687,4 +760,3 @@ void loop() {
     delay(remainingTimeBudget);
   }
 }
- 
