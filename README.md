@@ -60,19 +60,20 @@ the screen is to remain on.
 	#include <SSD1306.h>
 	#include <OLEDDisplayUi.h>
 
-	//OLED pins to ESP32 GPIOs via this connecthin:
-	//OLED_SDA -- GPIO4
-	//OLED_SCL -- GPIO15
-	//OLED_RST -- GPIO16
+	// OLED pins to ESP32 GPIOs via this connecthin:
+	#define OLED_ADDRESS 0x3c
+	#define OLED_SDA 4 // GPIO4
+	#define OLED_SCL 15 // GPIO15
+	#define OLED_RST 16 // GPIO16
 
-	SSD1306 display(0x3c, 4, 15); // i2c address, SDA pin, SCL pin
+	SSD1306 display(OLED_ADDRESS, OLED_SDA, OLED_SCL);
 	OLEDDisplayUi ui( &display );
 
 	void setup()
 	{
-		pinMode(16,OUTPUT);
-		digitalWrite(16, LOW); // GPIO16 low to reset OLED
+		pinMode(OLED_RST,OUTPUT);
+		digitalWrite(OLED_RST, LOW); // low to reset OLED
 		delay(50); 
-		digitalWrite(16, HIGH); // GPIO16 must be high to turn on OLED
+		digitalWrite(OLED_RST, HIGH); // must be high to turn on OLED
 		// ....
 	}
