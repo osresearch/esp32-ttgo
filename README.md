@@ -9,6 +9,8 @@ reset, so it isn't as useful).  There is a slightly more [expensive version
 with a blue OLED](https://www.aliexpress.com/item/2pcs-of-868MHz-915MHz-SX1276-ESP32-LoRa-0-96-Inch-Blue-OLED-Display-Bluetooth-WIFI-Kit/32840618066.html)
 with a 900 Mhz radio.
 
+Libraries
+===
 The official devkit is a 300 MB download, but if you have already setup
 ESP32 on your Arduino IDE then you just need to install the libraries
 for the OLED and LoRa (in the [`libraries/`](libraries/) directory of
@@ -27,7 +29,7 @@ to access the ESP32 non-volatile storage, and the `Wire` library for
 i2c communication.
 
 Pinout
----
+===
 The 400 MHz version with the white OLED:
 ![TTGO ESP32 module pinout](images/esp32-pinout.jpg)
 
@@ -46,5 +48,31 @@ The ad copy says something about a touch screen:
 There doesn't seem to be any discussion of it in the SDK, nor is it
 described with pin needs to pull-down.
 
+OLED notes
+===
 
+The reset pin on the OLED needs to be controlled by the sketch. It does
+not seem to be included in the library.  Pin 16 is the reset line and
+it should be brought low for a few ms, then held high the entire time
+the screen is to remain on.
 
+	#include <Wire.h>
+	#include <SSD1306.h>
+	#include <OLEDDisplayUi.h>
+
+	//OLED pins to ESP32 GPIOs via this connecthin:
+	//OLED_SDA -- GPIO4
+	//OLED_SCL -- GPIO15
+	//OLED_RST -- GPIO16
+
+	SSD1306 display(0x3c, 4, 15); // i2c address, SDA pin, SCL pin
+	OLEDDisplayUi ui( &display );
+
+	void setup()
+	{
+		pinMode(16,OUTPUT);
+		digitalWrite(16, LOW); // GPIO16 low to reset OLED
+		delay(50); 
+		digitalWrite(16, HIGH); // GPIO16 must be high to turn on OLED
+		// ....
+	}
