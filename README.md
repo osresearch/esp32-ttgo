@@ -86,6 +86,8 @@ the screen is to remain on.
 
 Demos
 ===
+![Weather station demo](images/weather-demo.jpg)
+
 The [SSD1306 demo](demo/SSD1306UiDemo/) should work once
 you've install the OLED library.
 
