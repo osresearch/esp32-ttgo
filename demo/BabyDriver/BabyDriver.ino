@@ -24,6 +24,7 @@ void show_scan() {
   else {
     display.setFont(ArialMT_Plain_10);
     display.setTextAlignment(TEXT_ALIGN_LEFT);
+    if (num_networks > 6) { num_networks=6; } // Not enough room to display everything, alas.
     for (int i = 0; i < num_networks; i++) {
       if (WiFi.encryptionType(i) == 7) { // Open network!!!
         display.fillRect(0,10*i,WIDTH,9);
