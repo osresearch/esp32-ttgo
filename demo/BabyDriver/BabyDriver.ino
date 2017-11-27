@@ -25,7 +25,12 @@ void show_scan() {
     display.setFont(ArialMT_Plain_10);
     display.setTextAlignment(TEXT_ALIGN_LEFT);
     for (int i = 0; i < num_networks; i++) {
+      if (WiFi.encryptionType(i) == 7) { // Open network!!!
+        display.fillRect(0,10*i,WIDTH,9);
+        display.setColor(INVERSE);
+      }
       display.drawString(0,10*i,WiFi.SSID(i));
+      display.setColor(WHITE);
     }
   }
 }
