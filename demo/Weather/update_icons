@@ -1,0 +1,23 @@
+#!/bin/sh
+
+for icon in \
+	snow \
+	rain \
+	sleet \
+	sunny \
+	cloudy \
+	mostlysunny \
+	fog \
+	tstorms \
+	nt_mostlycloudy \
+	nt_clear \
+	snow \
+; do
+	echo $icon
+	curl http://icons-ak.wxug.com/i/c/k/$icon.gif \
+	| convert - $icon.xbm \
+	&& sed -e 's/^static /const /' \
+	< $icon.xbm \
+	> ${icon}_gif.c \
+	&& rm $icon.xbm
+done
