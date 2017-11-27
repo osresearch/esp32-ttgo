@@ -9,6 +9,11 @@ reset, so it isn't as useful).  There is a slightly more [expensive version
 with a blue OLED](https://www.aliexpress.com/item/2pcs-of-868MHz-915MHz-SX1276-ESP32-LoRa-0-96-Inch-Blue-OLED-Display-Bluetooth-WIFI-Kit/32840618066.html)
 with a 900 Mhz radio.
 
+It is programmable with the normal ESP32 Arduino IDE, using
+the board type `ESP32 Dev Module` and programmable over the
+`/dev/ttyUSB0` port.  On OSX and Windows you might need to install
+a driver for the CP2102 USB to UART bridge from Silicon Labs.
+
 Libraries
 ===
 The official devkit is a 300 MB download, but if you have already setup
@@ -77,3 +82,14 @@ the screen is to remain on.
 		digitalWrite(OLED_RST, HIGH); // must be high to turn on OLED
 		// ....
 	}
+
+
+Demos
+===
+The [SSD1306 demo](demo/SSD1306UiDemo/) should work once
+you've install the OLED library.
+
+The [Weather demo](demo/Weather/) is derived from
+[G6EJD's Weather Station](https://github.com/G6EJD/ESP32-Weather-Station-using-1.3-OLED)
+and requires both a [Weather Underground API key](https://www.wunderground.com/weather/api/)
+as well as your local WiFi credentials.
