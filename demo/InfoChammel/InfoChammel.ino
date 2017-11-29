@@ -70,7 +70,7 @@ void drawFrame3(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int1
     if (num_networks > 4) { num_networks=4; } // Not enough room to display everything, alas.
     for (int i = 0; i < num_networks; i++) {
       if (WiFi.encryptionType(i) == WIFI_AUTH_OPEN) { // Open network!!!
-        display->fillRect(x,16+y+10*i,128,9);
+        display->fillRect(x,18+y+10*i,128,9);
         display->setColor(INVERSE);
       }
       display->drawString(x,16+y+10*i,WiFi.SSID(i));
