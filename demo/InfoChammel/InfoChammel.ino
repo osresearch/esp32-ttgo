@@ -69,7 +69,7 @@ void drawFrame3(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int1
     display->setFont(ArialMT_Plain_10);
     if (num_networks > 4) { num_networks=4; } // Not enough room to display everything, alas.
     for (int i = 0; i < num_networks; i++) {
-      if (WiFi.encryptionType(i) == 7) { // Open network!!!
+      if (WiFi.encryptionType(i) == WIFI_AUTH_OPEN) { // Open network!!!
         display->fillRect(x,16+y+10*i,128,9);
         display->setColor(INVERSE);
       }
