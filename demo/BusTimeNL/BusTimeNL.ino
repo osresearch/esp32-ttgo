@@ -26,6 +26,7 @@ WebSocketsClient ws;
 //const unsigned long query_interval_ms = 60 * 1000; // once per minute
 const unsigned long query_interval_ms = 10 * 1000; // debug
 unsigned long last_query_ms;
+time_t last_update_sec;
 
 // linked list of train structures
 struct train_t {
@@ -112,6 +113,7 @@ if(0)
 	Serial.print(type);
 	Serial.print(" ");
 }
+	last_update_sec = time(NULL);
 
 	if (type == WStype_DISCONNECTED)
 	{
@@ -356,15 +358,53 @@ void draw_frame1(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int
 	draw_frame(3, display, state, x, y);
 }
 
-void draw_frame2(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
+void show_time(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
 {
-	draw_frame(6, display, state, x, y);
+	// just the time
+	struct tm tm;
+	if(!getLocalTime(&tm))
+	{
+		Serial.println("Failed to obtain time");
+		return;
+	}
+
+	display->setTextAlignment(TEXT_ALIGN_CENTER);
+	display->setFont(ArialMT_Plain_16);
+
+	char buf[32];
+	snprintf(buf, sizeof(buf),
+		"%04d-%02d-%02d",
+		tm.tm_year+1900,
+		tm.tm_mon+1,
+		tm.tm_mday
+	);
+	display->drawString(x+64, y+10, buf);
+
+	snprintf(buf, sizeof(buf),
+		"%02d:%02d:%02d",
+		tm.tm_hour,
+		tm.tm_min,
+		tm.tm_sec
+	);
+	display->drawString(x+64, y+30, buf);
+
+	display->setFont(ArialMT_Plain_10);
+	if(last_update_sec)
+	{
+		snprintf(buf, sizeof(buf), "%d",
+			time(NULL) - last_update_sec);
+		display->setTextAlignment(TEXT_ALIGN_RIGHT);
+		display->drawString(x+128, y+53, buf);
+	}
+
+	display->setTextAlignment(TEXT_ALIGN_LEFT);
+	display->drawString(x+0, y+53, WiFi.localIP().toString());
 }
 
 
 // This array keeps function pointers to all frames
 // frames are the single views that slide in
-FrameCallback frames[] = { draw_frame0, draw_frame1, draw_frame2, };
+FrameCallback frames[] = { show_time, draw_frame0, draw_frame1, };
 
 // how many frames are there?
 const int frameCount = sizeof(frames) / sizeof(*frames);
