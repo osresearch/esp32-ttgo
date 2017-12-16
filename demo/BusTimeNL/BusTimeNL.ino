@@ -102,11 +102,14 @@ if(0)
 	}
 
 	// see response.txt for sample object
-	const int trip_id = trip["trip"]["number"];
-
 	JsonObject &journey = trip["journey"];
 	const int line_number = journey["lineNumber"];
 	const char * destination = journey["destination"];
+	const char * vehicle = journey["vehicletype"];
+
+	// should use "id" : "gvb:3:zkg:243:2017-12-16",
+	// but for now using the short number
+	const int trip_id = trip["trip"]["number"];
 
 	JsonObject &arrival = trip["calls"][0];
 	int delay_sec = 0;
@@ -126,12 +129,13 @@ if(0)
 
 	const char * status = arrival["status"];
 
-	printf("%5d %8s %s %+4d: %3d %s\n",
+	printf("%4d %8s %s %+4d: %3d %c %s\n",
 		trip_id,
 		status,
 		arrival_time,
 		delay_sec,
 		line_number,
+		vehicle[0],
 		destination
 	);
 
