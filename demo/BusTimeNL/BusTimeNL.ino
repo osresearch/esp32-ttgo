@@ -27,6 +27,76 @@ WebSocketsClient ws;
 const unsigned long query_interval_ms = 10 * 1000; // debug
 unsigned long last_query_ms;
 
+// linked list of train structures
+struct train_t {
+	train_t * next;
+	train_t ** prev;
+	int id;
+	char status; // U or A (upcoming or arriving)
+	char type; // B or T (bus or tram)
+	unsigned long arrival;
+	int delay_sec;
+	char line_number[5];
+	char destination[32];
+};
+
+static train_t * train_list;
+
+train_t * train_find_and_remove(int id)
+{
+	train_t * t = train_list;
+	while(t)
+	{
+		if(t->id != id)
+		{
+			t = t->next;
+			continue;
+		}
+
+		// found it -- remove it from the list
+		*(t->prev) = t->next;
+		if (t->next)
+			t->next->prev = t->prev;
+		t->next = NULL;
+		return t;
+	}
+
+	return t;
+}
+
+train_t * train_create(int id)
+{
+	train_t * t = (train_t*) calloc(1, sizeof(*t));
+	t->id = id;
+	t->next = NULL;
+	t->prev = NULL;
+	t->arrival = 0;
+	t->delay_sec = 0;
+	t->status = '?';
+	t->type = '?';
+
+	return t;
+}
+
+
+void train_insert(train_t * nt)
+{
+	train_t **t = &train_list;
+	while(*t)
+	{
+		if((*t)->arrival > nt->arrival)
+			break;
+
+		t = &(*t)->next;
+	}
+
+	// found our spot or the list is empty
+	nt->next = *t;
+	nt->prev = t;
+	*t = nt;
+}
+
+
 // OLED display object definition (address, SDA, SCL)
 SSD1306 display(0x3c, 4, 15);
 OLEDDisplayUi ui( &display );
@@ -103,13 +173,14 @@ if(0)
 
 	// see response.txt for sample object
 	JsonObject &journey = trip["journey"];
-	const int line_number = journey["lineNumber"];
+	const char * line_number = journey["lineNumber"];
 	const char * destination = journey["destination"];
 	const char * vehicle = journey["vehicletype"];
 
 	// should use "id" : "gvb:3:zkg:243:2017-12-16",
 	// but for now using the short number
 	const int trip_id = trip["trip"]["number"];
+	const char * date = trip["trip"]["operatingDate"];
 
 	JsonObject &arrival = trip["calls"][0];
 	int delay_sec = 0;
@@ -129,7 +200,18 @@ if(0)
 
 	const char * status = arrival["status"];
 
-	printf("%4d %8s %s %+4d: %3d %c %s\n",
+	struct tm tm = {};
+/*
+	strptime(date, "%Y-%m-%d", &tm);
+	strptime(arrival_time, "%H-%M-%S", &tm);
+*/
+	sscanf(date, "%d-%d-%d", &tm.tm_year, &tm.tm_mon, &tm.tm_mday);
+	sscanf(arrival_time, "%d:%d:%d", &tm.tm_hour, &tm.tm_min, &tm.tm_sec);
+	tm.tm_year -= 1900; // years since 1900
+	tm.tm_mon -= 1; // months go from 0 - 11
+	time_t at = mktime(&tm);
+
+	printf("%4d %8s %s %+4d: %-3s %c %s\n",
 		trip_id,
 		status,
 		arrival_time,
@@ -139,10 +221,59 @@ if(0)
 		destination
 	);
 
+	if (arrival_time[0] == 'N')
+	{
+		// we can't parse a nonexistant time
+		return;
+	}
+
+	// figure out where to insert this into our list
+
+	train_t * t = train_find_and_remove(trip_id);
+	if (!t)
+	{
+		if (status[0] == 'P')
+		{
+			// we have never heard of this train,
+			// so let's not bother adding it
+			return;
+		}
+
+		t = train_create(trip_id);
+		t->type = vehicle[0];
+		strlcpy(t->destination, destination, sizeof(t->destination));
+		strlcpy(t->line_number, line_number, sizeof(t->line_number));
+	}
+
+	if (status[0] == 'P')
+	{
+		// "Passed": we've already removed it from the list
+		// so we release the trip
+		free(t);
+		return;
+	} else
+	if (status[0] == 'A' || status[0] == 'U')
+	{
+		// "Arriving", "Upcoming" or "Unknown"
+		// we'll update the arrival time
+	} else {
+		printf("%d: Unknown status: '%s'\n",
+			trip_id,
+			status
+		);
+	}
+ 
+	// update the arrival time
+	t->status = status[0];
+	t->arrival = at;
+	t->delay_sec = delay_sec;
+
+	// re-insert it into the sorted list
+	train_insert(t);
+
 	jsonBuffer.clear();
 	jsonBuffer2.clear();
 
-	// figure out where to insert this into our list
 	
 }
 
@@ -166,20 +297,74 @@ void msOverlay(OLEDDisplay *display, OLEDDisplayUiState* state)
 */
 }
 
-void draw_frame(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
+void draw_frame(int start, OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
 {
-	display->setFont(ArialMT_Plain_16);
+	time_t now = time(NULL);
+	char buf[32];
 
-    //display->drawRect(0,23,40,33); // Icon alignment rectangle
-    display->setTextAlignment(TEXT_ALIGN_RIGHT);
-    //display->drawString(x+128,y+8,getCurrWeather());
-    //display->drawString(x+128,y+30,getCurrC()+"°C / "+getRelHum()); // use getCurrF for fahrenheit
+	train_t * t = train_list;
+
+	// throw away up to the starting train
+	for(int i = 0 ; t && i < start ; i++, t = t->next)
+		;
+
+	// and draw the next three
+	for(int i = 0 ; t && i < 3 ; i++, t = t->next)
+	{
+		display->setFont(ArialMT_Plain_16);
+		display->setTextAlignment(TEXT_ALIGN_RIGHT);
+		display->drawString(x+25, y+i*21+2, t->line_number);
+
+		display->setFont(ArialMT_Plain_10);
+		display->setTextAlignment(TEXT_ALIGN_LEFT);
+		display->drawString(x+30, y+i*21+0, t->destination);
+
+		int delta = t->arrival - now - 3600; // fix for UTC to NL
+if(1)
+		snprintf(buf, sizeof(buf), "%2d:%02d",
+			delta / 60,
+			delta % 60
+		);
+else
+		snprintf(buf, sizeof(buf), "%d", delta);
+
+		if (t->status == 'A')
+		{
+			display->drawString(x+30, y+i*21+10, "ARRIVING");
+		} else {
+			display->drawString(x+30, y+i*21+10, buf);
+		}
+
+		if (t->delay_sec != 0)
+		{
+			snprintf(buf, sizeof(buf), "%+4d",
+				t->delay_sec
+			);
+			display->setTextAlignment(TEXT_ALIGN_RIGHT);
+			display->drawString(x+110, y+i*21+10, buf);
+		}
+	}
+}
+
+void draw_frame0(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
+{
+	draw_frame(0, display, state, x, y);
+}
+
+void draw_frame1(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
+{
+	draw_frame(3, display, state, x, y);
+}
+
+void draw_frame2(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
+{
+	draw_frame(6, display, state, x, y);
 }
 
 
 // This array keeps function pointers to all frames
 // frames are the single views that slide in
-FrameCallback frames[] = { draw_frame, };
+FrameCallback frames[] = { draw_frame0, draw_frame1, draw_frame2, };
 
 // how many frames are there?
 const int frameCount = sizeof(frames) / sizeof(*frames);
@@ -222,11 +407,11 @@ void setup() {
 //  ui.setActiveSymbol(activeSymbol);
 //  ui.setInactiveSymbol(inactiveSymbol);
   // You can change this to TOP, LEFT, BOTTOM, RIGHT
-  ui.setIndicatorPosition(BOTTOM);
+  ui.setIndicatorPosition(RIGHT);
   // Defines where the first frame is located in the bar.
   ui.setIndicatorDirection(LEFT_RIGHT);
   // You can change the transition that is used SLIDE_LEFT, SLIDE_RIGHT, SLIDE_UP, SLIDE_DOWN
-  ui.setFrameAnimation(SLIDE_LEFT);
+  ui.setFrameAnimation(SLIDE_UP);
   // Add frames
   ui.setFrames(frames, frameCount);
   // Add overlays
@@ -264,6 +449,23 @@ void loop()
 
 	// attempt a reconnect or send a new query
 	last_query_ms = now_ms;
+
+	// dump the list
+	train_t * t = train_list;
+	while(t)
+	{
+		printf("%3d %c %d %-4d: %-3s %c %s\n",
+			t->id,
+			t->status,
+			t->arrival,
+			t->delay_sec,
+			t->line_number,
+			t->type,
+			t->destination
+		);
+
+		t = t->next;
+	}
 
 /*
 	Serial.println("sending query");
