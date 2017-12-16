@@ -9,6 +9,8 @@
 #include <OLEDDisplayUi.h>
 #include "config.h"
 
+extern const char Lato_Bold_21[];
+
 // GVB websocket address
 // wss://maps.gvb.nl:8443/stops/02113
 static const char ws_host[] = "maps.gvb.nl";
@@ -315,6 +317,9 @@ void draw_frame(int start, OLEDDisplay *display, OLEDDisplayUiState* state, int1
 	time_t now = time(NULL);
 	char buf[32];
 
+	// round now to the nearest few seconds
+	now = (now / 4) * 4;
+
 	train_t * t = train_list;
 
 	// throw away up to the starting train
@@ -327,17 +332,18 @@ void draw_frame(int start, OLEDDisplay *display, OLEDDisplayUiState* state, int1
 		if (t->status == 'A')
 		{
 			// make it inverse video for this train
-			display->fillRect(x,y+i*21, 120, 21);
+			display->fillRect(x,y+i*21+1, 120, 21);
 			display->setColor(INVERSE);
 		}
 
-		display->setFont(ArialMT_Plain_16);
+		//display->setFont(ArialMT_Plain_16); // 24 almost works
+		display->setFont(Lato_Bold_21);
 		display->setTextAlignment(TEXT_ALIGN_RIGHT);
-		display->drawString(x+25, y+i*21+2, t->line_number);
+		display->drawString(x+25, y+i*21, t->line_number);
 
 		display->setFont(ArialMT_Plain_10);
 		display->setTextAlignment(TEXT_ALIGN_LEFT);
-		display->drawString(x+30, y+i*21+0, t->destination);
+		display->drawString(x+30, y+i*21, t->destination);
 
 		int delta = t->arrival - now - TZ_OFFSET; // fix for UTC to NL
 		char neg = ' ';
@@ -386,6 +392,18 @@ void draw_frame1(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int
 
 void show_time(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
 {
+	// only show the time for a second
+	static unsigned long start_millis;
+
+	if (start_millis == 0)
+		start_millis = millis();
+	else
+	if (millis() - start_millis > 1500)
+	{
+		start_millis = 0;
+		ui.nextFrame();
+	}
+
 	// just the time
 	struct tm tm;
 	if(!getLocalTime(&tm))
