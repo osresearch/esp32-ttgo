@@ -14,7 +14,11 @@
 static const char ws_host[] = "maps.gvb.nl";
 //static const char ws_host[] = "134.213.137.29";
 static const int ws_port = 8443;
-static const char ws_query[] = "[5,\"/stops/02113\"]";
+static const char *ws_queries[] = {
+	"[5,\"/stops/02113\"]",
+	"[5,\"/stops/02114\"]",
+};
+static const int ws_num_queries = sizeof(ws_queries)/sizeof(*ws_queries);
 WebSocketsClient ws;
 
 
@@ -47,7 +51,8 @@ if(0)
 	if (type == WStype_CONNECTED)
 	{
 		Serial.println("CONNECTED");
-		ws.sendTXT(ws_query);
+		for(int i = 0 ; i < ws_num_queries ; i++)
+			ws.sendTXT(ws_queries[i]);
 		return;
 	}
 	if (type != WStype_TEXT)
@@ -71,7 +76,7 @@ if(0)
 }
 
 	//StaticJsonBuffer<1024*2> jsonBuffer;
-	DynamicJsonBuffer jsonBuffer(2048);
+	DynamicJsonBuffer jsonBuffer(4096);
 	// since we own the payload, we can modify it into an array
 	//JsonObject& root = jsonBuffer.parseObject(payload_str);
 	JsonArray & root = jsonBuffer.parseArray((char*) payload);
@@ -87,29 +92,54 @@ if(0)
 	// since we don't care if the string is modified
 	const char * trip_str = root[2];
 
-	DynamicJsonBuffer jsonBuffer2(2048);
-	JsonObject& trip = jsonBuffer2.parseObject((char*) trip_str);
+	DynamicJsonBuffer jsonBuffer2(4096);
+	JsonObject& trip = jsonBuffer2.parseObject(trip_str);
 	if(!trip.success())
 	{
 		Serial.println("Unable to parse trip object");
+		jsonBuffer.clear();
 		return;
 	}
 
 	// see response.txt for sample object
+	const int trip_id = trip["trip"]["number"];
+
 	JsonObject &journey = trip["journey"];
-	const char * line_number = journey["lineNumber"];
+	const int line_number = journey["lineNumber"];
 	const char * destination = journey["destination"];
 
 	JsonObject &arrival = trip["calls"][0];
-	int delay_sec = arrival["delay"];
-	const char * live_arrival = arrival["liveArrivalAt"];
+	int delay_sec = 0;
+	const char * arrival_time = arrival["liveArrivalAt"];
 
-	printf("%s %s: %s (%d)\n",
+	// if there is no live arrival time, don't fetch the delay
+	// and instead just fetch the planned time
+	if(arrival_time)
+	{
+		delay_sec = arrival["delay"];
+	} else {
+		arrival_time = arrival["plannedArrivalAt"];
+	}
+
+	if (!arrival_time)
+		arrival_time = "N/A";
+
+	const char * status = arrival["status"];
+
+	printf("%5d %8s %s %+4d: %3d %s\n",
+		trip_id,
+		status,
+		arrival_time,
+		delay_sec,
 		line_number,
-		destination,
-		live_arrival,
-		delay_sec
+		destination
 	);
+
+	jsonBuffer.clear();
+	jsonBuffer2.clear();
+
+	// figure out where to insert this into our list
+	
 }
 
 
