@@ -90,11 +90,14 @@ Demos
 The [SSD1306 demo](demo/SSD1306UiDemo/) should work once
 you've install the OLED library.
 
+
 ![Netherlands transit demo](images/bustime-demo.jpg)
+
 This demo uses the web socket API from [GVB maps](https://maps.gvb.nl/) to
 track the next buses and trams arriving.  A hacked up version of the
 ArduinoWebSocket library is included to make it work with the esp32 and SSL.
 This should be pushed upstream.
+
 
 ![Weather station demo](images/weather-demo.jpg)
 
