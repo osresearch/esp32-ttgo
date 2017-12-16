@@ -312,93 +312,125 @@ void msOverlay(OLEDDisplay *display, OLEDDisplayUiState* state)
 */
 }
 
-void draw_frame(int start, OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
+
+static void
+draw_train(
+	train_t * t,
+	time_t start,
+	OLEDDisplay *display,
+	OLEDDisplayUiState* state,
+	int16_t x,
+	int16_t y
+)
 {
-	time_t now = time(NULL);
+	// only draw if part of it is visible
+	if (y < -21 || y > 64)
+		return;
+
+	if (t->status == 'A')
+	{
+		// make it inverse video for this train
+		display->fillRect(x,y+1, 120, 21);
+		display->setColor(INVERSE);
+	}
+
+	//display->setFont(ArialMT_Plain_16); // 24 almost works
+	display->setFont(Lato_Bold_21);
+	display->setTextAlignment(TEXT_ALIGN_RIGHT);
+	display->drawString(x+25, y, t->line_number);
+
+	display->setFont(ArialMT_Plain_10);
+	display->setTextAlignment(TEXT_ALIGN_LEFT);
+	display->drawString(x+30, y, t->destination);
+
+	int delta = t->arrival - start - TZ_OFFSET; // fix for UTC to NL
+	char neg = ' ';
+	if (delta < 0)
+	{
+		neg = '-';
+		delta = -delta;
+	}
+
 	char buf[32];
 
-	// round now to the nearest few seconds
-	now = (now / 4) * 4;
+	snprintf(buf, sizeof(buf), "%c%2d:%02d",
+		neg,
+		delta / 60,
+		delta % 60
+	);
 
-	train_t * t = train_list;
-
-	// throw away up to the starting train
-	for(int i = 0 ; t && i < start ; i++, t = t->next)
-		;
-
-	// and draw the next three
-	for(int i = 0 ; t && i < 3 ; i++, t = t->next)
+	if (t->status == 'A')
 	{
-		if (t->status == 'A')
-		{
-			// make it inverse video for this train
-			display->fillRect(x,y+i*21+1, 120, 21);
-			display->setColor(INVERSE);
-		}
+		display->drawString(x+30, y+10, "ARRIVING");
+	} else {
+		display->drawString(x+30, y+10, buf);
+	}
 
-		//display->setFont(ArialMT_Plain_16); // 24 almost works
-		display->setFont(Lato_Bold_21);
-		display->setTextAlignment(TEXT_ALIGN_RIGHT);
-		display->drawString(x+25, y+i*21, t->line_number);
-
-		display->setFont(ArialMT_Plain_10);
-		display->setTextAlignment(TEXT_ALIGN_LEFT);
-		display->drawString(x+30, y+i*21, t->destination);
-
-		int delta = t->arrival - now - TZ_OFFSET; // fix for UTC to NL
-		char neg = ' ';
-		if (delta < 0)
-		{
-			neg = '-';
-			delta = -delta;
-		}
-
-		snprintf(buf, sizeof(buf), "%c%2d:%02d",
-			neg,
-			delta / 60,
-			delta % 60
+	if (t->delay_sec != 0)
+	{
+		snprintf(buf, sizeof(buf), "%+4d",
+			t->delay_sec
 		);
-
-		if (t->status == 'A')
-		{
-			display->drawString(x+30, y+i*21+10, "ARRIVING");
-		} else {
-			display->drawString(x+30, y+i*21+10, buf);
-		}
-
-		if (t->delay_sec != 0)
-		{
-			snprintf(buf, sizeof(buf), "%+4d",
-				t->delay_sec
-			);
-			display->setTextAlignment(TEXT_ALIGN_RIGHT);
-			display->drawString(x+110, y+i*21+10, buf);
-		}
+		display->setTextAlignment(TEXT_ALIGN_RIGHT);
+		display->drawString(x+110, y+10, buf);
 	}
 
 	// always set the display back to normal
 	display->setColor(WHITE);
 }
 
-void draw_frame0(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
+void draw_frame(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
 {
-	draw_frame(0, display, state, x, y);
-}
+	static unsigned long start_ms;
+	unsigned long now_ms = millis();
+	if (start_ms == 0)
+		start_ms = now_ms;
+	int delta_ms = now_ms - start_ms;
+	if (delta_ms > 12000)
+	{
+		start_ms = 0;
+		ui.nextFrame();
+		return;
+	}
 
-void draw_frame1(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
-{
-	draw_frame(3, display, state, x, y);
+	// hang out on the first one for two seconds
+	if (delta_ms < 3000)
+		delta_ms = 0;
+	else
+		delta_ms -= 3000;
+
+	// draw a scrollbar
+	display->fillRect(x+125, y + (64 * delta_ms)/12000, 3, 12);
+
+	// and draw the smooth scroll
+	time_t now_sec = time(NULL);
+	train_t * t = train_list;
+
+	for(int i = 0 ; t && i < 12 ; i++, t = t->next)
+	{
+		draw_train(
+			t,
+			now_sec,
+			display,
+			state,
+			x,
+			y + i*21 - (delta_ms * 21) / 1000
+		);
+	}
 }
 
 void show_time(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
 {
 	// only show the time for a second
 	static unsigned long start_millis;
+	unsigned long now = millis();
 
 	if (start_millis == 0)
-		start_millis = millis();
-	else
-	if (millis() - start_millis > 1500)
+	{
+		start_millis = now;
+	} else
+	if (now - start_millis > 1500
+	&& last_update_sec != 0)
 	{
 		start_millis = 0;
 		ui.nextFrame();
@@ -461,7 +493,7 @@ void show_time(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16
 
 // This array keeps function pointers to all frames
 // frames are the single views that slide in
-FrameCallback frames[] = { show_time, draw_frame0, draw_frame1, };
+FrameCallback frames[] = { show_time, draw_frame, };
 
 // how many frames are there?
 const int frameCount = sizeof(frames) / sizeof(*frames);
@@ -499,13 +531,18 @@ void setup() {
   Serial.begin(115200);
 
   ui.setTargetFPS(30);
-  ui.setIndicatorPosition(RIGHT);
-  ui.setIndicatorDirection(LEFT_RIGHT);
-  ui.setFrameAnimation(SLIDE_UP);
+  //ui.setIndicatorPosition(RIGHT);
+  //ui.setIndicatorDirection(LEFT_RIGHT);
+  ui.disableAllIndicators();
+
+  ui.setFrameAnimation(SLIDE_LEFT);
   ui.setFrames(frames, frameCount);
   ui.setOverlays(overlays, overlaysCount);
+
+  //ui.setTimePerTransition(200);
+  ui.disableAutoTransition();
+
   ui.init();
-  ui.setTimePerTransition(200);
 
   display.flipScreenVertically();
 
