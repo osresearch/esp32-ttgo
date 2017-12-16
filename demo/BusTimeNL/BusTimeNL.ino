@@ -16,7 +16,6 @@ static const char ws_host[] = "maps.gvb.nl";
 static const int ws_port = 8443;
 static const char ws_query[] = "[5,\"/stops/02113\"]";
 WebSocketsClient ws;
-DynamicJsonBuffer jsonBuffer(4096);
 
 
 // query parameters
@@ -33,7 +32,6 @@ WiFiClient client; // wifi client object
 void
 ws_event(WStype_t type, uint8_t * payload, size_t len)
 {
-	// When using a StaticJsonBuffer you must allocate sufficient memory for the json string returned by the WU api
 if(0)
 {
 	Serial.print("event ");
@@ -58,6 +56,13 @@ if(0)
 		return;
 	}
 
+	if (len > 1024)
+	{
+		Serial.print("ERROR: len=");
+		Serial.println(len);
+		return;
+	}
+
 if(0)
 {
 	Serial.print("='");
@@ -65,12 +70,11 @@ if(0)
 	Serial.println("'");
 }
 
-	String payload_str = "{\"root\":";
-	payload_str += (const char*) payload;
-	payload_str += "}";
-
-	jsonBuffer.clear();
-	JsonObject& root = jsonBuffer.parseObject(payload_str);
+	//StaticJsonBuffer<1024*2> jsonBuffer;
+	DynamicJsonBuffer jsonBuffer(2048);
+	// since we own the payload, we can modify it into an array
+	//JsonObject& root = jsonBuffer.parseObject(payload_str);
+	JsonArray & root = jsonBuffer.parseArray((char*) payload);
 
 	if(!root.success())
 	{
@@ -79,10 +83,12 @@ if(0)
 	}
 
 	// The format is '[id,url,details]', where details is a string
-	// that packs another json object.
-	const char * trip_str = root["root"][2];
+	// that packs another json object.  We can cast-away the const,
+	// since we don't care if the string is modified
+	const char * trip_str = root[2];
 
-	JsonObject& trip = jsonBuffer.parseObject(trip_str);
+	DynamicJsonBuffer jsonBuffer2(2048);
+	JsonObject& trip = jsonBuffer2.parseObject((char*) trip_str);
 	if(!trip.success())
 	{
 		Serial.println("Unable to parse trip object");
