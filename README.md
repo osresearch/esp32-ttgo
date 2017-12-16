@@ -86,12 +86,21 @@ the screen is to remain on.
 
 Demos
 ===
-![Weather station demo](images/weather-demo.jpg)
 
 The [SSD1306 demo](demo/SSD1306UiDemo/) should work once
 you've install the OLED library.
+
+![Netherlands transit demo](images/bustime-demo.jpg)
+This demo uses the web socket API from [GVB maps](https://maps.gvb.nl/) to
+track the next buses and trams arriving.  A hacked up version of the
+ArduinoWebSocket library is included to make it work with the esp32 and SSL.
+This should be pushed upstream.
+
+![Weather station demo](images/weather-demo.jpg)
 
 The [Weather demo](demo/Weather/) is derived from
 [G6EJD's Weather Station](https://github.com/G6EJD/ESP32-Weather-Station-using-1.3-OLED)
 and requires both a [Weather Underground API key](https://www.wunderground.com/weather/api/)
 as well as your local WiFi credentials.
+
+
