@@ -19,7 +19,14 @@ static const char *ws_queries[] = {
 	"[5,\"/stops/02114\"]",
 };
 static const int ws_num_queries = sizeof(ws_queries)/sizeof(*ws_queries);
+#define TZ_OFFSET 3600
 WebSocketsClient ws;
+
+// OLED display object definition (address, SDA, SCL)
+SSD1306 display(0x3c, 4, 15);
+OLEDDisplayUi ui( &display );
+
+WiFiClient client; // wifi client object
 
 
 // query parameters
@@ -59,10 +66,11 @@ train_t * train_find_and_remove(int id)
 		if (t->next)
 			t->next->prev = t->prev;
 		t->next = NULL;
+		t->prev = NULL;
 		return t;
 	}
 
-	return t;
+	return NULL;
 }
 
 train_t * train_create(int id)
@@ -95,14 +103,10 @@ void train_insert(train_t * nt)
 	nt->next = *t;
 	nt->prev = t;
 	*t = nt;
+	if (nt->next)
+		nt->next->prev = &nt->next;
 }
 
-
-// OLED display object definition (address, SDA, SCL)
-SSD1306 display(0x3c, 4, 15);
-OLEDDisplayUi ui( &display );
-
-WiFiClient client; // wifi client object
 
 void
 ws_event(WStype_t type, uint8_t * payload, size_t len)
@@ -212,20 +216,25 @@ if(0)
 	tm.tm_year -= 1900; // years since 1900
 	tm.tm_mon -= 1; // months go from 0 - 11
 	time_t at = mktime(&tm);
+	int delta = at - last_update_sec;
 
-	printf("%4d %8s %s %+4d: %-3s %c %s\n",
+	printf("%4d %8s %s %+4d: %-3s %c %s %d\n",
 		trip_id,
 		status,
 		arrival_time,
 		delay_sec,
 		line_number,
 		vehicle[0],
-		destination
+		destination,
+		delta
 	);
 
-	if (arrival_time[0] == 'N')
+	if (arrival_time[0] == 'N' || delta < -TZ_OFFSET - 600)
 	{
 		// we can't parse a nonexistant time
+		// or this was way in the past
+		Serial.write(payload, len);
+		Serial.println("'");
 		return;
 	}
 
@@ -313,6 +322,13 @@ void draw_frame(int start, OLEDDisplay *display, OLEDDisplayUiState* state, int1
 	// and draw the next three
 	for(int i = 0 ; t && i < 3 ; i++, t = t->next)
 	{
+		if (t->status == 'A')
+		{
+			// make it inverse video for this train
+			display->fillRect(x,y+i*21, 120, 21);
+			display->setColor(INVERSE);
+		}
+
 		display->setFont(ArialMT_Plain_16);
 		display->setTextAlignment(TEXT_ALIGN_RIGHT);
 		display->drawString(x+25, y+i*21+2, t->line_number);
@@ -321,7 +337,7 @@ void draw_frame(int start, OLEDDisplay *display, OLEDDisplayUiState* state, int1
 		display->setTextAlignment(TEXT_ALIGN_LEFT);
 		display->drawString(x+30, y+i*21+0, t->destination);
 
-		int delta = t->arrival - now - 3600; // fix for UTC to NL
+		int delta = t->arrival - now - TZ_OFFSET; // fix for UTC to NL
 if(1)
 		snprintf(buf, sizeof(buf), "%2d:%02d",
 			delta / 60,
@@ -346,6 +362,9 @@ else
 			display->drawString(x+110, y+i*21+10, buf);
 		}
 	}
+
+	// always set the display back to normal
+	display->setColor(WHITE);
 }
 
 void draw_frame0(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
@@ -372,13 +391,6 @@ void show_time(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16
 	display->setFont(ArialMT_Plain_16);
 
 	char buf[32];
-	snprintf(buf, sizeof(buf),
-		"%04d-%02d-%02d",
-		tm.tm_year+1900,
-		tm.tm_mon+1,
-		tm.tm_mday
-	);
-	display->drawString(x+64, y+10, buf);
 
 	snprintf(buf, sizeof(buf),
 		"%02d:%02d:%02d",
@@ -386,19 +398,39 @@ void show_time(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16
 		tm.tm_min,
 		tm.tm_sec
 	);
-	display->drawString(x+64, y+30, buf);
+
+	display->setFont(ArialMT_Plain_24);
+	display->drawString(x+64, y+24, buf);
+
+	snprintf(buf, sizeof(buf),
+		"%04d-%02d-%02d",
+		tm.tm_year+1900,
+		tm.tm_mon+1,
+		tm.tm_mday
+	);
+
+	display->setFont(ArialMT_Plain_16);
+	display->drawString(x+64, y+4, buf);
 
 	display->setFont(ArialMT_Plain_10);
 	if(last_update_sec)
 	{
-		snprintf(buf, sizeof(buf), "%d",
-			time(NULL) - last_update_sec);
-		display->setTextAlignment(TEXT_ALIGN_RIGHT);
-		display->drawString(x+128, y+53, buf);
+		int delta = time(NULL) - last_update_sec;
+		snprintf(buf, sizeof(buf), "%d", delta);
+		display->setTextAlignment(TEXT_ALIGN_LEFT);
+		display->drawString(x, y+54, buf);
+
+		// two minutes without a packet, force it
+		if (delta > 120)
+		{
+			last_update_sec = 0;
+			ws.disconnect();
+			ws.beginSSL(ws_host, ws_port);
+		}
 	}
 
-	display->setTextAlignment(TEXT_ALIGN_LEFT);
-	display->drawString(x+0, y+53, WiFi.localIP().toString());
+	display->setTextAlignment(TEXT_ALIGN_CENTER);
+	display->drawString(x+64, y+54, WiFi.localIP().toString());
 }
 
 
@@ -441,32 +473,23 @@ void setup() {
 
   Serial.begin(115200);
 
-    // The ESP is capable of rendering 60fps in 80Mhz mode but that won't give you much time for anything else run it in 160Mhz mode or just set it to 30 fps
   ui.setTargetFPS(30);
-  // Customize the active and inactive symbol
-//  ui.setActiveSymbol(activeSymbol);
-//  ui.setInactiveSymbol(inactiveSymbol);
-  // You can change this to TOP, LEFT, BOTTOM, RIGHT
   ui.setIndicatorPosition(RIGHT);
-  // Defines where the first frame is located in the bar.
   ui.setIndicatorDirection(LEFT_RIGHT);
-  // You can change the transition that is used SLIDE_LEFT, SLIDE_RIGHT, SLIDE_UP, SLIDE_DOWN
   ui.setFrameAnimation(SLIDE_UP);
-  // Add frames
   ui.setFrames(frames, frameCount);
-  // Add overlays
   ui.setOverlays(overlays, overlaysCount);
-  // Initialising the UI will init the display too.
   ui.init();
+  ui.setTimePerTransition(200);
+
   display.flipScreenVertically();
+
   Start_WiFi(ssid,password);
+
   configTime(1, 3600, "pool.ntp.org");
 
-  // force a query on the entry to the loop
-  last_query_ms = 0;
-
 	Serial.println("attempting connection");
-	ws.beginSSL(ws_host, ws_port, "/", "", "BusTimeNL");
+	ws.beginSSL(ws_host, ws_port);
 	ws.onEvent(ws_event);
 	ws.setReconnectInterval(query_interval_ms);
 }
@@ -492,6 +515,7 @@ void loop()
 
 	// dump the list
 	train_t * t = train_list;
+	int count = 0;
 	while(t)
 	{
 		printf("%3d %c %d %-4d: %-3s %c %s\n",
@@ -505,6 +529,13 @@ void loop()
 		);
 
 		t = t->next;
+
+		if (count++ > 50)
+		{
+			// something is wrong. flush the whole list
+			printf("ERROR?\n");
+			break;
+		}
 	}
 
 /*
