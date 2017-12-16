@@ -229,8 +229,10 @@ if(0)
 		delta
 	);
 
-	if (arrival_time[0] == 'N' || delta < -TZ_OFFSET - 600)
-	{
+	if (arrival_time[0] == 'N'
+	|| delta < -TZ_OFFSET - 600
+	|| strcmp(status, "Unknown") == 0
+	) {
 		// we can't parse a nonexistant time
 		// or this was way in the past
 		Serial.write(payload, len);
@@ -338,13 +340,18 @@ void draw_frame(int start, OLEDDisplay *display, OLEDDisplayUiState* state, int1
 		display->drawString(x+30, y+i*21+0, t->destination);
 
 		int delta = t->arrival - now - TZ_OFFSET; // fix for UTC to NL
-if(1)
-		snprintf(buf, sizeof(buf), "%2d:%02d",
+		char neg = ' ';
+		if (delta < 0)
+		{
+			neg = '-';
+			delta = -delta;
+		}
+
+		snprintf(buf, sizeof(buf), "%c%2d:%02d",
+			neg,
 			delta / 60,
 			delta % 60
 		);
-else
-		snprintf(buf, sizeof(buf), "%d", delta);
 
 		if (t->status == 'A')
 		{
