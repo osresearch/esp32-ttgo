@@ -1,0 +1,50 @@
+Websocket query results in a set of these:
+
+[8,"\/stops\/02113",
+{"trip":{"id":"gvb:3:zkg:243:2017-12-16","number":"243","operatorKey":"gvb","operatingDate":"2017-12-16","lastCallMade":{"stopCode":"00017","stopName":"Linnaeusstraat","callOrder":3,"status":"Passed","plannedArrivalAt":"17:21:59","plannedDepartureAt":"17:22:17","delay":61,"liveArrivalAt":"17:22:56","liveDepartureAt":"17:23:18","isExtrapolated":false,"lastUpdateAt":"2017-12-16T17:24:30+01:00"}},"journey":{"id":10874,"code":"3STRH","lineId":4759,"lineNumber":"3","vehicletype":"Tram","destination":"Zoutkeetsgracht"},"calls":[{"stopCode":"02113","stopName":"Haarlemmerplein","callOrder":20,"status":"Upcoming","plannedArrivalAt":"17:55:08","plannedDepartureAt":"17:55:26","delay":0,"liveArrivalAt":"17:55:08","liveDepartureAt":"17:55:26","isExtrapolated":false,"lastUpdateAt":"2017-12-16T17:13:02+01:00"}],"time":1513441471}
+
+{
+   "time" : 1513441471,
+   "trip" : {
+      "number" : "243",
+      "lastCallMade" : {
+         "plannedArrivalAt" : "17:21:59",
+         "isExtrapolated" : false,
+         "callOrder" : 3,
+         "liveArrivalAt" : "17:22:56",
+         "plannedDepartureAt" : "17:22:17",
+         "stopName" : "Linnaeusstraat",
+         "lastUpdateAt" : "2017-12-16T17:24:30+01:00",
+         "stopCode" : "00017",
+         "liveDepartureAt" : "17:23:18",
+         "delay" : 61,
+         "status" : "Passed"
+      },
+      "id" : "gvb:3:zkg:243:2017-12-16",
+      "operatorKey" : "gvb",
+      "operatingDate" : "2017-12-16"
+   },
+   "journey" : {
+      "lineNumber" : "3",
+      "destination" : "Zoutkeetsgracht",
+      "code" : "3STRH",
+      "lineId" : 4759,
+      "vehicletype" : "Tram",
+      "id" : 10874
+   },
+   "calls" : [
+      {
+         "plannedDepartureAt" : "17:55:26",
+         "liveArrivalAt" : "17:55:08",
+         "stopName" : "Haarlemmerplein",
+         "stopCode" : "02113",
+         "lastUpdateAt" : "2017-12-16T17:13:02+01:00",
+         "delay" : 0,
+         "liveDepartureAt" : "17:55:26",
+         "status" : "Upcoming",
+         "plannedArrivalAt" : "17:55:08",
+         "isExtrapolated" : false,
+         "callOrder" : 20
+      }
+   ]
+}
