@@ -16,10 +16,12 @@ static const char ws_host[] = "maps.gvb.nl";
 static const int ws_port = 8443;
 static const char ws_query[] = "[5,\"/stops/02113\"]";
 WebSocketsClient ws;
+DynamicJsonBuffer jsonBuffer(4096);
+
 
 // query parameters
 //const unsigned long query_interval_ms = 60 * 1000; // once per minute
-const unsigned long query_interval_ms = 60 * 1000; // debug
+const unsigned long query_interval_ms = 10 * 1000; // debug
 unsigned long last_query_ms;
 
 // OLED display object definition (address, SDA, SCL)
@@ -32,9 +34,12 @@ void
 ws_event(WStype_t type, uint8_t * payload, size_t len)
 {
 	// When using a StaticJsonBuffer you must allocate sufficient memory for the json string returned by the WU api
+if(0)
+{
 	Serial.print("event ");
 	Serial.print(type);
 	Serial.print(" ");
+}
 
 	if (type == WStype_DISCONNECTED)
 	{
@@ -44,6 +49,7 @@ ws_event(WStype_t type, uint8_t * payload, size_t len)
 	if (type == WStype_CONNECTED)
 	{
 		Serial.println("CONNECTED");
+		ws.sendTXT(ws_query);
 		return;
 	}
 	if (type != WStype_TEXT)
@@ -52,24 +58,52 @@ ws_event(WStype_t type, uint8_t * payload, size_t len)
 		return;
 	}
 
+if(0)
+{
 	Serial.print("='");
 	Serial.write(payload, len);
 	Serial.println("'");
-/*
-	Serial.println("Creating object...");
-	DynamicJsonBuffer jsonBuffer(5*1024);
-	// Create root object and parse the json file returned from the api. The API returns errors and these need to be checked to ensure successful decoding
-	JsonObject& root = jsonBuffer.parseObject(payload, len);
+}
+
+	String payload_str = "{\"root\":";
+	payload_str += (const char*) payload;
+	payload_str += "}";
+
+	jsonBuffer.clear();
+	JsonObject& root = jsonBuffer.parseObject(payload_str);
+
 	if(!root.success())
 	{
-		// if the root object could not be created, then return an error make an API call the next time around
 		Serial.println("Unable to create a root object");
-		    return false;
+		return;
 	}
 
-	//JsonObject& CurrentObservation = root["current_observation"];
-      return true;
-*/
+	// The format is '[id,url,details]', where details is a string
+	// that packs another json object.
+	const char * trip_str = root["root"][2];
+
+	JsonObject& trip = jsonBuffer.parseObject(trip_str);
+	if(!trip.success())
+	{
+		Serial.println("Unable to parse trip object");
+		return;
+	}
+
+	// see response.txt for sample object
+	JsonObject &journey = trip["journey"];
+	const char * line_number = journey["lineNumber"];
+	const char * destination = journey["destination"];
+
+	JsonObject &arrival = trip["calls"][0];
+	int delay_sec = arrival["delay"];
+	const char * live_arrival = arrival["liveArrivalAt"];
+
+	printf("%s %s: %s (%d)\n",
+		line_number,
+		destination,
+		live_arrival,
+		delay_sec
+	);
 }
 
 
@@ -191,7 +225,9 @@ void loop()
 	// attempt a reconnect or send a new query
 	last_query_ms = now_ms;
 
+/*
 	Serial.println("sending query");
 	if (!ws.sendTXT(ws_query))
 		Serial.println("FAILED");
+*/
 }
