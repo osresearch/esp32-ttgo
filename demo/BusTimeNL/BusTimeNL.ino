@@ -349,7 +349,7 @@ draw_train(
 	display->drawString(x+30, y, t->destination);
 
 	int delta = t->arrival - now - TZ_OFFSET; // fix for UTC to NL
-	if (delta < 120)
+	if (delta < -120)
 	{
 		// we seem to have forgotten about this one
 		train_remove(t);
