@@ -401,25 +401,25 @@ void draw_frame(int start, OLEDDisplay *display, OLEDDisplayUiState* state, int1
 
 void draw_frame0(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
 {
-	draw_frame(3, display, state, x, y + 2*21);
+	draw_frame(2, display, state, x, y + 2*21);
 	draw_indicator(display, 1);
 }
 
 void draw_frame1(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
 {
-	draw_frame(4, display, state, x, y + 2*21);
+	draw_frame(3, display, state, x, y + 2*21);
 	draw_indicator(display, 2);
 }
 
 void draw_frame2(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
 {
-	draw_frame(5, display, state, x, y + 2*21);
+	draw_frame(4, display, state, x, y + 2*21);
 	draw_indicator(display, 3);
 }
 
 void draw_frame3(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
 {
-	draw_frame(6, display, state, x, y + 2*21);
+	draw_frame(5, display, state, x, y + 2*21);
 	draw_indicator(display, 4);
 }
 
