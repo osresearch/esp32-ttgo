@@ -297,25 +297,6 @@ if(0)
 }
 
 
-void msOverlay(OLEDDisplay *display, OLEDDisplayUiState* state)
-{
-/*
-	struct tm timeinfo;
-	if(!getLocalTime(&timeinfo))
-	{
-		Serial.println("Failed to obtain time");
-		return;
-	}
-
-	//See http://www.cplusplus.com/reference/ctime/strftime/
-	time_str = asctime(&timeinfo); // Displays: Sat Jun 24 14:05:49 2017
-	display->setFont(ArialMT_Plain_10);
-	display->setTextAlignment(TEXT_ALIGN_CENTER); // The coordinates define the center of the screen!
-	display->drawString(18,53,time_str.substring(4,10));
-	display->drawString(107,53,time_str.substring(11,19));
-*/
-}
-
 
 void
 draw_train(
@@ -390,6 +371,12 @@ draw_train(
 	display->setColor(WHITE);
 }
 
+void draw_indicator(OLEDDisplay *display, int i)
+{
+	const int frameCount = 5;
+	//display->drawLine(i*64/frameCount, 63, (i+1)*64/frameCount, 63);
+}
+
 void draw_frame(int start, OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
 {
 	time_t now = time(NULL);
@@ -403,8 +390,8 @@ void draw_frame(int start, OLEDDisplay *display, OLEDDisplayUiState* state, int1
 	for(int i = 0 ; t && i < start ; i++, t = t->next)
 		;
 
-	// and draw the next three
-	for(int i = 0 ; t && i < 3 ; i++)
+	// and draw the next one (side slide)
+	for(int i = 0 ; t && i < 1 ; i++)
 	{
 		train_t * nt = t->next; // t might be deleted
 		draw_train(t, now, display, state, x, y + i*21);
@@ -414,12 +401,26 @@ void draw_frame(int start, OLEDDisplay *display, OLEDDisplayUiState* state, int1
 
 void draw_frame0(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
 {
-	draw_frame(0, display, state, x, y);
+	draw_frame(3, display, state, x, y + 2*21);
+	draw_indicator(display, 1);
 }
 
 void draw_frame1(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
 {
-	draw_frame(3, display, state, x, y);
+	draw_frame(4, display, state, x, y + 2*21);
+	draw_indicator(display, 2);
+}
+
+void draw_frame2(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
+{
+	draw_frame(5, display, state, x, y + 2*21);
+	draw_indicator(display, 3);
+}
+
+void draw_frame3(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
+{
+	draw_frame(6, display, state, x, y + 2*21);
+	draw_indicator(display, 4);
 }
 
 void show_time(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
@@ -430,11 +431,14 @@ void show_time(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16
 	if (start_millis == 0)
 		start_millis = millis();
 	else
-	if (millis() - start_millis > 1500)
+	if (millis() - start_millis > 1500
+	&& last_update_sec != 0)
 	{
 		start_millis = 0;
 		ui.nextFrame();
 	}
+
+	draw_indicator(display, 0);
 
 	// just the time
 	struct tm tm;
@@ -457,25 +461,34 @@ void show_time(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16
 	);
 
 	display->setFont(ArialMT_Plain_24);
-	display->drawString(x+64, y+24, buf);
+	display->drawString(x+64-8, y+2*21, buf);
 
-	snprintf(buf, sizeof(buf),
-		"%04d-%02d-%02d",
-		tm.tm_year+1900,
-		tm.tm_mon+1,
-		tm.tm_mday
-	);
 
-	display->setFont(ArialMT_Plain_16);
-	display->drawString(x+64, y+4, buf);
-
-	display->setFont(ArialMT_Plain_10);
-	if(last_update_sec)
+	if(last_update_sec == 0)
 	{
+		// if we don't have any updates, display
+		// the date and time
+		snprintf(buf, sizeof(buf),
+			"%04d-%02d-%02d",
+			tm.tm_year+1900,
+			tm.tm_mon+1,
+			tm.tm_mday
+		);
+
+		display->setFont(ArialMT_Plain_16);
+		display->drawString(x+64-8, y+24, buf);
+
+		display->setFont(ArialMT_Plain_10);
+		display->setTextAlignment(TEXT_ALIGN_CENTER);
+		display->drawString(x+64-8, y+4, WiFi.localIP().toString());
+	} else {
 		int delta = time(NULL) - last_update_sec;
 		snprintf(buf, sizeof(buf), "%d", delta);
+
+		display->setFont(ArialMT_Plain_10);
 		display->setTextAlignment(TEXT_ALIGN_LEFT);
-		display->drawString(x, y+54, buf);
+		if (delta > 10)
+			display->drawString(x, y+54, buf);
 
 		// two minutes without a packet, force it
 		if (delta > 120)
@@ -485,21 +498,32 @@ void show_time(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16
 			ws.beginSSL(ws_host, ws_port);
 		}
 	}
-
-	display->setTextAlignment(TEXT_ALIGN_CENTER);
-	display->drawString(x+64, y+54, WiFi.localIP().toString());
 }
 
 
+// draw the top two trains
+void draw_two_trains(OLEDDisplay *display, OLEDDisplayUiState* state)
+{
+	draw_frame(0, display, state, 0, 0);
+	draw_frame(1, display, state, 0, 21);
+}
+
 // This array keeps function pointers to all frames
 // frames are the single views that slide in
-FrameCallback frames[] = { show_time, draw_frame0, draw_frame1, };
+//FrameCallback frames[] = { show_time, draw_frame0, draw_frame1, };
+FrameCallback frames[] = {
+	show_time,
+	draw_frame0,
+	draw_frame1,
+	draw_frame2,
+	draw_frame3,
+};
 
 // how many frames are there?
 const int frameCount = sizeof(frames) / sizeof(*frames);
 
 // Overlays are statically drawn on top of a frame eg. a clock
-OverlayCallback overlays[] = { msOverlay, };
+OverlayCallback overlays[] = { draw_two_trains, };
 const int overlaysCount = sizeof(overlays) / sizeof(*overlays);
 
 int Start_WiFi(const char* ssid, const char* password)
@@ -533,11 +557,14 @@ void setup() {
   ui.setTargetFPS(30);
   ui.setIndicatorPosition(RIGHT);
   ui.setIndicatorDirection(LEFT_RIGHT);
-  ui.setFrameAnimation(SLIDE_UP);
+  //ui.disableAllIndicators();
+
+  ui.setFrameAnimation(SLIDE_LEFT);
   ui.setFrames(frames, frameCount);
   ui.setOverlays(overlays, overlaysCount);
   ui.init();
-  ui.setTimePerTransition(200);
+  ui.setTimePerTransition(500);
+  ui.setTimePerFrame(1500);
 
   display.flipScreenVertically();
 
