@@ -52,27 +52,29 @@ struct train_t {
 
 static train_t * train_list;
 
-train_t * train_find_and_remove(int id)
+train_t * train_find(int id)
 {
 	train_t * t = train_list;
 	while(t)
 	{
-		if(t->id != id)
-		{
-			t = t->next;
-			continue;
-		}
+		if(t->id == id)
+			return t;
 
-		// found it -- remove it from the list
-		*(t->prev) = t->next;
-		if (t->next)
-			t->next->prev = t->prev;
-		t->next = NULL;
-		t->prev = NULL;
-		return t;
+		t = t->next;
 	}
 
 	return NULL;
+}
+
+
+void train_remove(train_t *t)
+{
+	if (t->next)
+		t->next->prev = t->prev;
+	*(t->prev) = t->next;
+
+	t->next = NULL;
+	t->prev = NULL;
 }
 
 train_t * train_create(int id)
@@ -244,9 +246,11 @@ if(0)
 
 	// figure out where to insert this into our list
 
-	train_t * t = train_find_and_remove(trip_id);
-	if (!t)
+	train_t * t = train_find(trip_id);
+	if (t)
 	{
+		train_remove(t);
+	} else {
 		if (status[0] == 'P')
 		{
 			// we have never heard of this train,
@@ -312,10 +316,83 @@ void msOverlay(OLEDDisplay *display, OLEDDisplayUiState* state)
 */
 }
 
+
+void
+draw_train(
+	train_t *t,
+	time_t now,
+	OLEDDisplay *display,
+	OLEDDisplayUiState* state,
+	int16_t x,
+	int16_t y
+)
+{
+	char buf[32];
+
+	if (t->status == 'A')
+	{
+		// make it inverse video for this train
+		display->fillRect(x,y+1, 120, 21);
+		display->setColor(INVERSE);
+	}
+
+	//display->setFont(ArialMT_Plain_16); // 24 almost works
+	if (strlen(t->line_number) >= 3)
+		display->setFont(ArialMT_Plain_16);
+	else
+		display->setFont(Lato_Bold_21);
+	display->setTextAlignment(TEXT_ALIGN_RIGHT);
+	display->drawString(x+25, y, t->line_number);
+
+	display->setFont(ArialMT_Plain_10);
+	display->setTextAlignment(TEXT_ALIGN_LEFT);
+	display->drawString(x+30, y, t->destination);
+
+	int delta = t->arrival - now - TZ_OFFSET; // fix for UTC to NL
+	if (delta < 120)
+	{
+		// we seem to have forgotten about this one
+		train_remove(t);
+		free(t);
+		return;
+	}
+
+	char neg = ' ';
+	if (delta < 0)
+	{
+		neg = '-';
+		delta = -delta;
+	}
+
+	snprintf(buf, sizeof(buf), "%c%2d:%02d",
+		neg,
+		delta / 60,
+		delta % 60
+	);
+
+	if (t->status == 'A')
+	{
+		display->drawString(x+30, y+10, "ARRIVING");
+	} else {
+		display->drawString(x+30, y+10, buf);
+	}
+
+	if (t->delay_sec != 0)
+	{
+		snprintf(buf, sizeof(buf), "%+4d",
+			t->delay_sec
+		);
+		display->setTextAlignment(TEXT_ALIGN_RIGHT);
+		display->drawString(x+110, y+10, buf);
+	}
+
+	// always set the display back to normal
+	display->setColor(WHITE);
+}
+
 void draw_frame(int start, OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
 {
 	time_t now = time(NULL);
-	char buf[32];
 
 	// round now to the nearest few seconds
 	now = (now / 4) * 4;
@@ -327,57 +404,12 @@ void draw_frame(int start, OLEDDisplay *display, OLEDDisplayUiState* state, int1
 		;
 
 	// and draw the next three
-	for(int i = 0 ; t && i < 3 ; i++, t = t->next)
+	for(int i = 0 ; t && i < 3 ; i++)
 	{
-		if (t->status == 'A')
-		{
-			// make it inverse video for this train
-			display->fillRect(x,y+i*21+1, 120, 21);
-			display->setColor(INVERSE);
-		}
-
-		//display->setFont(ArialMT_Plain_16); // 24 almost works
-		display->setFont(Lato_Bold_21);
-		display->setTextAlignment(TEXT_ALIGN_RIGHT);
-		display->drawString(x+25, y+i*21, t->line_number);
-
-		display->setFont(ArialMT_Plain_10);
-		display->setTextAlignment(TEXT_ALIGN_LEFT);
-		display->drawString(x+30, y+i*21, t->destination);
-
-		int delta = t->arrival - now - TZ_OFFSET; // fix for UTC to NL
-		char neg = ' ';
-		if (delta < 0)
-		{
-			neg = '-';
-			delta = -delta;
-		}
-
-		snprintf(buf, sizeof(buf), "%c%2d:%02d",
-			neg,
-			delta / 60,
-			delta % 60
-		);
-
-		if (t->status == 'A')
-		{
-			display->drawString(x+30, y+i*21+10, "ARRIVING");
-		} else {
-			display->drawString(x+30, y+i*21+10, buf);
-		}
-
-		if (t->delay_sec != 0)
-		{
-			snprintf(buf, sizeof(buf), "%+4d",
-				t->delay_sec
-			);
-			display->setTextAlignment(TEXT_ALIGN_RIGHT);
-			display->drawString(x+110, y+i*21+10, buf);
-		}
+		train_t * nt = t->next; // t might be deleted
+		draw_train(t, now, display, state, x, y + i*21);
+		t = nt;
 	}
-
-	// always set the display back to normal
-	display->setColor(WHITE);
 }
 
 void draw_frame0(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
@@ -419,7 +451,7 @@ void show_time(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16
 
 	snprintf(buf, sizeof(buf),
 		"%02d:%02d:%02d",
-		tm.tm_hour,
+		tm.tm_hour + 1,
 		tm.tm_min,
 		tm.tm_sec
 	);
